@@ -217,7 +217,15 @@
       const outcome = state.outcomes.find(o => o.id === id);
       if (outcome) {
         outcome[field] = value;
-        renderAll();
+        // Re-render dependent views but NOT outcomes to preserve focus
+        if(state.outcomes.length === 0) {
+          document.getElementById('matrix-body').innerHTML = '<tr><td colspan="6" class="text-center p-4 text-gray-500">Add outcomes to see scenarios</td></tr>';
+          updateChart([]);
+          return;
+        }
+        const scenarios = calculateScenarios();
+        renderMatrix(scenarios);
+        updateChart(scenarios);
       }
     }
 
@@ -313,6 +321,16 @@
 
     // --- Rendering ---
 
+    function escapeHTML(str) {
+      if (str == null) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     function formatCurrency(val) {
       return '$' + val.toFixed(2);
     }
@@ -339,7 +357,7 @@
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td class="px-4 py-2">
-            <input type="text" value="${o.name}" placeholder="e.g. 2-0" oninput="updateOutcome('${o.id}', 'name', this.value)" class="w-full rounded border-gray-300 shadow-sm p-1 text-sm">
+            <input type="text" value="${escapeHTML(o.name)}" placeholder="e.g. 2-0" oninput="updateOutcome('${o.id}', 'name', this.value)" class="w-full rounded border-gray-300 shadow-sm p-1 text-sm">
           </td>
           <td class="px-4 py-2">
             <input type="number" min="0" step="1" value="${o.contracts}" oninput="updateOutcome('${o.id}', 'contracts', this.value)" class="w-full rounded border-gray-300 shadow-sm p-1 text-sm">
@@ -363,7 +381,7 @@
         const pnlColor = sc.netPnL >= 0 ? 'text-green-600' : 'text-red-600';
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td class="px-4 py-2 text-left font-medium text-gray-900">${sc.outcomeName}</td>
+          <td class="px-4 py-2 text-left font-medium text-gray-900">${escapeHTML(sc.outcomeName)}</td>
           <td class="px-4 py-2">${formatCurrency(sc.totalInvestment)}</td>
           <td class="px-4 py-2">${formatCurrency(sc.grossPayout)}</td>
           <td class="px-4 py-2">${formatCurrency(sc.platformFees)}</td>
@@ -424,7 +442,7 @@
       pnlChartInstance.data.datasets[0].data = data;
       pnlChartInstance.data.datasets[0].backgroundColor = bgColors;
       pnlChartInstance.data.datasets[0].borderColor = borderColors;
-      pnlChartInstance.update();
+      pnlChartInstance.update('none');
 
       // Update max profit / loss indicators
       if(data.length > 0) {
