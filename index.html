@@ -61,10 +61,8 @@
             <div>
               <label class="block text-sm font-medium text-gray-700">Kalshi API Key</label>
               <input type="text" id="kalshi-api-key" placeholder="Enter API Key..." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+              <p class="text-xs text-gray-500 mt-2">API requests are made from the Markets panel directly.</p>
             </div>
-            <button onclick="fetchKalshiStatus()" class="w-full bg-indigo-100 hover:bg-indigo-200 text-indigo-800 px-4 py-2 rounded text-sm transition">Check Exchange Status</button>
-            <div id="kalshi-status" class="text-xs text-gray-500 italic mt-1">Status: Unknown</div>
-            <button onclick="fetchKalshiData()" class="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded text-sm transition">Fetch Order Book</button>
           </div>
         </div>
 
@@ -112,7 +110,10 @@
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700">Market URL / Ticker (Optional)</label>
-              <input type="text" id="market-url" oninput="updateActiveMarket('url', this.value)" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+              <div class="flex space-x-2 mt-1">
+                <input type="text" id="market-url" oninput="updateActiveMarket('url', this.value)" class="block w-full rounded-md border-gray-300 shadow-sm border p-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+                <button onclick="fetchKalshiMarketData(this)" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded shadow transition text-sm whitespace-nowrap">Fetch Live Data</button>
+              </div>
             </div>
             <div class="flex justify-end">
               <button onclick="removeActiveMarket()" class="text-sm text-red-500 hover:text-red-700 transition font-medium">Delete Market</button>
@@ -333,28 +334,73 @@
       // Example: fetch('https://clob.polymarket.com/price?token=...')
     }
 
-    async function fetchKalshiStatus() {
-      const statusEl = document.getElementById('kalshi-status');
-      statusEl.textContent = "Fetching status...";
+    function parseKalshiTicker(input) {
+      if (!input) return null;
+      input = input.trim();
       try {
-        const response = await fetch('https://trading-api.kalshi.com/trade-api/v2/exchange/status');
-        const data = await response.json();
-        if(data.exchange_active) {
-            statusEl.textContent = "Status: Active";
-            statusEl.classList.add("text-green-600");
-        } else {
-            statusEl.textContent = "Status: Inactive";
-            statusEl.classList.add("text-red-600");
+        if (input.startsWith('http')) {
+          const url = new URL(input);
+          const parts = url.pathname.split('/').filter(p => p.length > 0);
+          if (parts.length > 0) {
+            return parts[parts.length - 1].toUpperCase();
+          }
         }
-      } catch (err) {
-        console.error(err);
-        statusEl.textContent = "Status: Fetch Failed (CORS/Network)";
-        statusEl.classList.add("text-red-600");
-      }
+      } catch (e) {}
+      return input.toUpperCase();
     }
 
-    async function fetchKalshiData() {
-      alert("Fetching Kalshi order book and fee multipliers... (Mocked, requires authentication)");
+    async function fetchKalshiMarketData(btn) {
+      const market = getActiveMarket();
+      if (!market) return alert("Please select or create a market first.");
+      
+      const rawInput = market.url || document.getElementById('market-url').value;
+      const ticker = parseKalshiTicker(rawInput);
+      
+      if (!ticker) {
+        return alert("Please enter a valid Kalshi Event Ticker or URL.");
+      }
+
+      const originalText = btn.textContent;
+      btn.textContent = "Fetching...";
+      btn.disabled = true;
+
+      try {
+        const apiUrl = `https://api.elections.kalshi.com/trade-api/v2/markets?event_ticker=${ticker}`;
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`;
+        
+        const response = await fetch(proxyUrl);
+        const data = await response.json();
+        
+        if (data.error) {
+          throw new Error(data.error.message || "Kalshi API returned an error.");
+        }
+        
+        if (!data.markets || data.markets.length === 0) {
+           throw new Error("No markets found for this ticker.");
+        }
+
+        // Clear current outcomes and populate new ones
+        market.outcomes = data.markets.map(m => {
+          return {
+            id: 'out_' + Math.random().toString(36).substr(2, 9),
+            name: m.yes_sub_title || m.subtitle || m.ticker,
+            contracts: 0,
+            price: parseFloat(m.yes_ask_dollars) || parseFloat(m.yes_bid_dollars) || parseFloat(m.last_price_dollars) || 0
+          };
+        });
+
+        if (data.markets[0] && data.markets[0].title) {
+          market.name = data.markets[0].title;
+        }
+
+        renderAll();
+      } catch (err) {
+        console.error(err);
+        alert("Failed to fetch Kalshi data: " + err.message);
+      } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }
     }
 
     // --- Core Logic & Math ---
