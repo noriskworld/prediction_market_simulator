@@ -94,6 +94,32 @@
       <!-- Main Content -->
       <div class="md:col-span-2 space-y-6">
         
+        <!-- Market Selection -->
+        <div class="bg-white p-6 rounded-xl shadow-sm">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold border-b pb-2 w-full flex justify-between items-center">
+              <span>Markets</span>
+              <button onclick="addMarket()" class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded shadow transition font-normal">+ Add Market</button>
+            </h2>
+          </div>
+          <div class="flex space-x-2 overflow-x-auto pb-2 border-b" id="market-tabs">
+            <!-- Tabs rendered here -->
+          </div>
+          <div id="active-market-details" class="mt-4 hidden space-y-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Market Name</label>
+              <input type="text" id="market-name" oninput="updateActiveMarket('name', this.value)" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Market URL / Ticker (Optional)</label>
+              <input type="text" id="market-url" oninput="updateActiveMarket('url', this.value)" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+            </div>
+            <div class="flex justify-end">
+              <button onclick="removeActiveMarket()" class="text-sm text-red-500 hover:text-red-700 transition font-medium">Delete Market</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Outcomes & Holdings -->
         <div class="bg-white p-6 rounded-xl shadow-sm">
           <div class="flex justify-between items-center mb-4 border-b pb-2">
@@ -158,7 +184,8 @@
     // State Management
     let state = {
       platform: 'Polymarket', // default
-      outcomes: [],
+      markets: [],
+      activeMarketId: null,
       fees: {
         polymarketTheta: 0.03,
         kalshiTakerFee: 0.007
@@ -170,6 +197,7 @@
     // Initialization
     window.onload = () => {
       initChart();
+      addMarket("Default Market");
       addOutcome("Yes", 100, 0.45);
       addOutcome("No", 0, 0);
       renderAll();
@@ -202,23 +230,59 @@
       renderAll();
     }
 
+    function addMarket(name = "New Market", url = "") {
+      const id = 'mkt_' + Math.random().toString(36).substr(2, 9);
+      state.markets.push({ id, name, url, outcomes: [] });
+      state.activeMarketId = id;
+      renderAll();
+    }
+
+    function setActiveMarket(id) {
+      state.activeMarketId = id;
+      renderAll();
+    }
+
+    function removeActiveMarket() {
+      state.markets = state.markets.filter(m => m.id !== state.activeMarketId);
+      state.activeMarketId = state.markets.length > 0 ? state.markets[0].id : null;
+      renderAll();
+    }
+
+    function updateActiveMarket(field, value) {
+      const market = state.markets.find(m => m.id === state.activeMarketId);
+      if (market) {
+        market[field] = value;
+        renderMarketTabs();
+      }
+    }
+
+    function getActiveMarket() {
+      return state.markets.find(m => m.id === state.activeMarketId);
+    }
+
     function addOutcome(name = "", contracts = 0, price = 0) {
+      const market = getActiveMarket();
+      if (!market) return alert("Please select or create a market first.");
       const id = 'out_' + Math.random().toString(36).substr(2, 9);
-      state.outcomes.push({ id, name, contracts, price });
+      market.outcomes.push({ id, name, contracts, price });
       renderAll();
     }
 
     function removeOutcome(id) {
-      state.outcomes = state.outcomes.filter(o => o.id !== id);
+      const market = getActiveMarket();
+      if (!market) return;
+      market.outcomes = market.outcomes.filter(o => o.id !== id);
       renderAll();
     }
 
     function updateOutcome(id, field, value) {
-      const outcome = state.outcomes.find(o => o.id === id);
+      const market = getActiveMarket();
+      if (!market) return;
+      const outcome = market.outcomes.find(o => o.id === id);
       if (outcome) {
         outcome[field] = value;
         // Re-render dependent views but NOT outcomes to preserve focus
-        if(state.outcomes.length === 0) {
+        if(market.outcomes.length === 0) {
           document.getElementById('matrix-body').innerHTML = '<tr><td colspan="6" class="text-center p-4 text-gray-500">Add outcomes to see scenarios</td></tr>';
           updateChart([]);
           return;
@@ -230,12 +294,30 @@
     }
 
     function loadExampleData() {
-      state.outcomes = [
-        { id: 'out_1', name: '2-0', contracts: 500, price: 0.35 },
-        { id: 'out_2', name: '2-1', contracts: 200, price: 0.20 },
-        { id: 'out_3', name: '1-2', contracts: 100, price: 0.15 },
-        { id: 'out_4', name: '0-2', contracts: 0, price: 0.00 }
+      state.markets = [
+        {
+          id: 'mkt_1',
+          name: 'Tennis Match (French Open)',
+          url: 'https://kalshi.com/markets/kxfomen/french-open-mens',
+          outcomes: [
+            { id: 'out_1', name: '2-0', contracts: 500, price: 0.35 },
+            { id: 'out_2', name: '2-1', contracts: 200, price: 0.20 },
+            { id: 'out_3', name: '1-2', contracts: 100, price: 0.15 },
+            { id: 'out_4', name: '0-2', contracts: 0, price: 0.00 }
+          ]
+        },
+        {
+          id: 'mkt_2',
+          name: 'US Presidential Election',
+          url: 'https://polymarket.com/elections',
+          outcomes: [
+            { id: 'out_5', name: 'Candidate A', contracts: 1000, price: 0.52 },
+            { id: 'out_6', name: 'Candidate B', contracts: 500, price: 0.45 },
+            { id: 'out_7', name: 'Other', contracts: 0, price: 0.03 }
+          ]
+        }
       ];
+      state.activeMarketId = 'mkt_1';
       state.platform = 'Polymarket';
       document.querySelector('input[value="Polymarket"]').checked = true;
       handlePlatformChange('Polymarket');
@@ -278,12 +360,15 @@
     // --- Core Logic & Math ---
 
     function calculateScenarios() {
-      return state.outcomes.map(winningOutcome => {
+      const market = getActiveMarket();
+      if (!market || !market.outcomes) return [];
+
+      return market.outcomes.map(winningOutcome => {
         let totalInvestment = 0;
         let grossPayout = 0;
         let platformFees = 0;
 
-        state.outcomes.forEach(o => {
+        market.outcomes.forEach(o => {
           let c = parseFloat(o.contracts) || 0;
           let p = parseFloat(o.price) || 0;
 
@@ -335,10 +420,38 @@
       return '$' + val.toFixed(2);
     }
 
+    function renderMarketTabs() {
+      const tabsContainer = document.getElementById('market-tabs');
+      tabsContainer.innerHTML = '';
+      if (state.markets.length === 0) {
+        tabsContainer.innerHTML = '<span class="text-sm text-gray-500">No markets created.</span>';
+        document.getElementById('active-market-details').classList.add('hidden');
+        return;
+      }
+      
+      state.markets.forEach(m => {
+        const isActive = m.id === state.activeMarketId;
+        const btn = document.createElement('button');
+        btn.className = `px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition ${isActive ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`;
+        btn.textContent = m.name || 'Unnamed Market';
+        btn.onclick = () => setActiveMarket(m.id);
+        tabsContainer.appendChild(btn);
+      });
+
+      const activeMarket = getActiveMarket();
+      if (activeMarket) {
+        document.getElementById('active-market-details').classList.remove('hidden');
+        document.getElementById('market-name').value = activeMarket.name || '';
+        document.getElementById('market-url').value = activeMarket.url || '';
+      }
+    }
+
     function renderAll() {
+      renderMarketTabs();
       renderOutcomes();
       
-      if(state.outcomes.length === 0) {
+      const market = getActiveMarket();
+      if(!market || market.outcomes.length === 0) {
         document.getElementById('matrix-body').innerHTML = '<tr><td colspan="6" class="text-center p-4 text-gray-500">Add outcomes to see scenarios</td></tr>';
         updateChart([]);
         return;
@@ -353,7 +466,10 @@
       const tbody = document.getElementById('outcomes-body');
       tbody.innerHTML = '';
       
-      state.outcomes.forEach((o, index) => {
+      const market = getActiveMarket();
+      if (!market) return;
+      
+      market.outcomes.forEach((o, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td class="px-4 py-2">
