@@ -366,13 +366,24 @@
 
       try {
         const apiUrl = `https://api.elections.kalshi.com/trade-api/v2/markets?event_ticker=${ticker}`;
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`;
         
-        const response = await fetch(proxyUrl);
-        const data = await response.json();
+        let data;
+        try {
+          // Attempt direct fetch first. This works if the user has a CORS unblocker extension.
+          const response = await fetch(apiUrl);
+          data = await response.json();
+        } catch (err) {
+          // Fallback to proxy if direct fails (e.g. no extension)
+          const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`;
+          const proxyResponse = await fetch(proxyUrl);
+          data = await proxyResponse.json();
+        }
         
         if (data.error) {
-          throw new Error(data.error.message || "Kalshi API returned an error.");
+          if (typeof data.error === 'string' && data.error.includes("Server-side")) {
+             throw new Error("Public proxy blocked the request. Because Kalshi blocks cross-origin requests, please install a 'Allow CORS' browser extension to fetch live data locally.");
+          }
+          throw new Error(data.error.message || JSON.stringify(data.error));
         }
         
         if (!data.markets || data.markets.length === 0) {
