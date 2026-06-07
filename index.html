@@ -374,7 +374,24 @@
       }
     }
 
-    async function fetchKalshiAPI(endpoint, method = "GET", apiKeyId = "", privateKeyPem = "", env = "demo") {
+    async function fetchKalshiAPI(endpoint, method = "GET", apiKeyId = "", privateKeyPem = "", env = "demo", subaccount = "0", bffMode = false, bffUrl = "") {
+      if (bffMode && bffUrl) {
+        const fullUrl = `${bffUrl}/api/kalshi${endpoint}`;
+        const headers = {
+          "Content-Type": "application/json",
+          "x-kalshi-env": env,
+          "x-kalshi-subaccount": subaccount
+        };
+        if (apiKeyId) headers["x-kalshi-api-key"] = apiKeyId;
+        if (privateKeyPem) headers["x-kalshi-private-key"] = privateKeyPem;
+
+        const response = await fetch(fullUrl, { method, headers });
+        if (!response.ok) {
+          throw new Error(`Kalshi API error: ${response.status} ${response.statusText}`);
+        }
+        return await response.json();
+      }
+
       const baseUrl = env === "prod" 
         ? "https://external-api.kalshi.com" 
         : "https://external-api.demo.kalshi.co";
@@ -393,6 +410,9 @@
         headers["KALSHI-ACCESS-KEY"] = apiKeyId;
         headers["KALSHI-ACCESS-TIMESTAMP"] = timestamp;
         headers["KALSHI-ACCESS-SIGNATURE"] = signature;
+        if (subaccount && subaccount !== "0") {
+          headers["KALSHI-SUBACCOUNT"] = subaccount;
+        }
       }
       
       const response = await fetch(fullUrl, { method, headers });
@@ -492,6 +512,19 @@
       const [kalshiTicker, setKalshiTicker] = useState('KXFOWOMEN-26');
       const [discoveredMarkets, setDiscoveredMarkets] = useState([]);
       const [isFetching, setIsFetching] = useState(false);
+
+      // Execution mode & BFF configuration
+      const [executionMode, setExecutionMode] = useState(() => localStorage.getItem('pm_exec_mode') || 'direct');
+      const [bffProxyUrl, setBffProxyUrl] = useState(() => localStorage.getItem('pm_bff_url') || 'http://localhost:8787');
+
+      // Sync settings to localStorage
+      useEffect(() => {
+        localStorage.setItem('pm_exec_mode', executionMode);
+      }, [executionMode]);
+
+      useEffect(() => {
+        localStorage.setItem('pm_bff_url', bffProxyUrl);
+      }, [bffProxyUrl]);
 
       // Kalshi Credentials and settings state
       const [kalshiEnv, setKalshiEnv] = useState('demo');
@@ -671,19 +704,22 @@
 
         // 1. Fetch Polymarket (Gamma API)
         try {
-          const polyUrl = `https://gamma-api.polymarket.com/events?slug=${polySlug}`;
           let data;
-
-          try {
-            // Direct fetch (some browsers/extensions allow this)
+          if (executionMode === 'bff') {
+            const polyUrl = `${bffProxyUrl}/api/polymarket/events?slug=${polySlug}`;
             const response = await fetch(polyUrl);
             data = await response.json();
-          } catch (e) {
-            // Fallback via proxy
-            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(polyUrl)}`;
-            const response = await fetch(proxyUrl);
-            const wrapped = await response.json();
-            data = JSON.parse(wrapped.contents);
+          } else {
+            const polyUrl = `https://gamma-api.polymarket.com/events?slug=${polySlug}`;
+            try {
+              const response = await fetch(polyUrl);
+              data = await response.json();
+            } catch (e) {
+              const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(polyUrl)}`;
+              const response = await fetch(proxyUrl);
+              const wrapped = await response.json();
+              data = JSON.parse(wrapped.contents);
+            }
           }
 
           if (data && data.length > 0 && data[0].markets) {
@@ -715,11 +751,29 @@
         try {
           let data;
           
-          if (kalshiApiKeyId && kalshiPrivateKey) {
+          if (executionMode === 'bff') {
+            try {
+              const balanceRes = await fetchKalshiAPI('/portfolio/balance', 'GET', kalshiApiKeyId, kalshiPrivateKey, kalshiEnv, kalshiSubaccount, true, bffProxyUrl);
+              if (balanceRes) {
+                setKalshiBalance(parseFloat(balanceRes.balance_dollars));
+                setKalshiPortfolioVal(parseFloat(balanceRes.portfolio_value_dollars));
+              }
+            } catch (err) {
+              console.warn("Could not retrieve account balance via BFF:", err);
+            }
+
+            setLogs(prev => [...prev, {
+              id: Date.now(),
+              type: 'FEED',
+              time: new Date().toLocaleTimeString(),
+              message: `Sending proxy request to Kalshi ${kalshiEnv} via BFF Worker...`
+            }]);
+
+            data = await fetchKalshiAPI(`/events/${kalshiTicker}?with_nested_markets=true`, 'GET', kalshiApiKeyId, kalshiPrivateKey, kalshiEnv, kalshiSubaccount, true, bffProxyUrl);
+          } else if (kalshiApiKeyId && kalshiPrivateKey) {
             // Authenticated route
             try {
-              // Sign the balance and positions requests as well to hydrate account data
-              const balanceRes = await fetchKalshiAPI('/portfolio/balance', 'GET', kalshiApiKeyId, kalshiPrivateKey, kalshiEnv);
+              const balanceRes = await fetchKalshiAPI('/portfolio/balance', 'GET', kalshiApiKeyId, kalshiPrivateKey, kalshiEnv, kalshiSubaccount, false);
               if (balanceRes) {
                 setKalshiBalance(parseFloat(balanceRes.balance_dollars));
                 setKalshiPortfolioVal(parseFloat(balanceRes.portfolio_value_dollars));
@@ -735,7 +789,7 @@
               message: `Sending cryptographically signed request to Kalshi ${kalshiEnv} API...`
             }]);
 
-            data = await fetchKalshiAPI(`/events/${kalshiTicker}?with_nested_markets=true`, 'GET', kalshiApiKeyId, kalshiPrivateKey, kalshiEnv);
+            data = await fetchKalshiAPI(`/events/${kalshiTicker}?with_nested_markets=true`, 'GET', kalshiApiKeyId, kalshiPrivateKey, kalshiEnv, kalshiSubaccount, false);
           } else {
             // Public unauthenticated route (elections API or proxy)
             const kalshiUrl = `https://api.elections.kalshi.com/trade-api/v2/events/${kalshiTicker}?with_nested_markets=true`;
@@ -898,9 +952,200 @@
         }
       }, [matrix.scenarios, scenarios]);
 
+      // Real-time WebSocket connection to BFF Worker
+      const wsRef = useRef(null);
+
+      useEffect(() => {
+        if (executionMode !== 'bff' || discoveredMarkets.length === 0) {
+          if (wsRef.current) {
+            wsRef.current.close();
+            wsRef.current = null;
+          }
+          return;
+        }
+
+        const wsBaseUrl = bffProxyUrl.replace(/^http/, 'ws');
+        let wsUrl = `${wsBaseUrl}/ws/kalshi?env=${kalshiEnv}`;
+        if (kalshiApiKeyId) wsUrl += `&apiKeyId=${kalshiApiKeyId}`;
+        if (kalshiPrivateKey) wsUrl += `&privateKey=${encodeURIComponent(kalshiPrivateKey)}`;
+
+        setLogs(prev => [...prev, {
+          id: Date.now(),
+          type: 'INFO',
+          time: new Date().toLocaleTimeString(),
+          message: `Establishing live WebSocket connection to BFF Worker: ${wsBaseUrl}...`
+        }]);
+
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          setLogs(prev => [...prev, {
+            id: Date.now(),
+            type: 'INFO',
+            time: new Date().toLocaleTimeString(),
+            message: `✓ Live WebSocket connection established with BFF Worker.`
+          }]);
+
+          const kalshiTickers = discoveredMarkets
+            .filter(m => m.platform === 'Kalshi')
+            .map(m => m.id);
+
+          if (kalshiTickers.length > 0) {
+            const subscribeMsg = {
+              id: Date.now(),
+              cmd: "subscribe",
+              params: {
+                channels: ["orderbook_delta"],
+                market_tickers: kalshiTickers
+              }
+            };
+            ws.send(JSON.stringify(subscribeMsg));
+            setLogs(prev => [...prev, {
+              id: Date.now(),
+              type: 'INFO',
+              time: new Date().toLocaleTimeString(),
+              message: `Subscribed to live orderbook feeds for ${kalshiTickers.length} Kalshi tickers.`
+            }]);
+          }
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'orderbook_snapshot') {
+              const ticker = data.market_ticker || data.ticker;
+              const snapshot = data.snapshot;
+              if (ticker && snapshot) {
+                const yesBids = (snapshot.yes_bids || []).map(b => [parseFloat(b.price_dollars || b[0]), parseInt(b.count_fp || b[1])]);
+                const noBids = (snapshot.no_bids || []).map(b => [parseFloat(b.price_dollars || b[0]), parseInt(b.count_fp || b[1])]);
+                
+                const newBook = PredictionEngine.reconstructOrderbook(yesBids, noBids);
+                setOrderbooks(prev => ({
+                  ...prev,
+                  [ticker]: newBook
+                }));
+
+                setDiscoveredMarkets(prevMarkets => prevMarkets.map(item => {
+                  if (item.id === ticker) {
+                    return {
+                      ...item,
+                      yesPrice: newBook.yesAsks[0] ? newBook.yesAsks[0][0] : item.yesPrice,
+                      noPrice: newBook.noAsks[0] ? newBook.noAsks[0][0] : item.noPrice,
+                      yesBid: newBook.yesBids[0] ? newBook.yesBids[0][0] : item.yesBid,
+                      noBid: newBook.noBids[0] ? newBook.noBids[0][0] : item.noBid
+                    };
+                  }
+                  return item;
+                }));
+              }
+            }
+            
+            else if (data.type === 'orderbook_delta') {
+              const ticker = data.market_ticker || data.ticker;
+              const delta = data.delta || data;
+              if (ticker && delta) {
+                const side = (delta.side || '').toUpperCase();
+                const price = parseFloat(delta.price_dollars);
+                const qtyDelta = parseInt(delta.delta_fp);
+
+                setOrderbooks(prev => {
+                  const currentBook = prev[ticker] || generateSyntheticOrderbook(0.5);
+                  let updatedYesBids = [...currentBook.yesBids];
+                  let updatedNoBids = [...currentBook.noBids];
+
+                  if (side === 'YES') {
+                    let found = false;
+                    updatedYesBids = updatedYesBids.map(b => {
+                      if (Math.abs(b[0] - price) < 0.005) {
+                        found = true;
+                        return [b[0], Math.max(0, b[1] + qtyDelta)];
+                      }
+                      return b;
+                    });
+                    if (!found && qtyDelta > 0) {
+                      updatedYesBids.push([price, qtyDelta]);
+                    }
+                    updatedYesBids = updatedYesBids.filter(b => b[1] > 0).sort((a, b) => b[0] - a[0]);
+                  } else if (side === 'NO') {
+                    let found = false;
+                    updatedNoBids = updatedNoBids.map(b => {
+                      if (Math.abs(b[0] - price) < 0.005) {
+                        found = true;
+                        return [b[0], Math.max(0, b[1] + qtyDelta)];
+                      }
+                      return b;
+                    });
+                    if (!found && qtyDelta > 0) {
+                      updatedNoBids.push([price, qtyDelta]);
+                    }
+                    updatedNoBids = updatedNoBids.filter(b => b[1] > 0).sort((a, b) => b[0] - a[0]);
+                  }
+
+                  const newBook = PredictionEngine.reconstructOrderbook(updatedYesBids, updatedNoBids);
+
+                  setDiscoveredMarkets(prevMarkets => prevMarkets.map(item => {
+                    if (item.id === ticker) {
+                      return {
+                        ...item,
+                        yesPrice: newBook.yesAsks[0] ? newBook.yesAsks[0][0] : item.yesPrice,
+                        noPrice: newBook.noAsks[0] ? newBook.noAsks[0][0] : item.noPrice,
+                        yesBid: newBook.yesBids[0] ? newBook.yesBids[0][0] : item.yesBid,
+                        noBid: newBook.noBids[0] ? newBook.noBids[0][0] : item.noBid
+                      };
+                    }
+                    return item;
+                  }));
+
+                  return {
+                    ...prev,
+                    [ticker]: newBook
+                  };
+                });
+
+                setLogs(prev => [...prev.slice(-49), {
+                  id: Date.now(),
+                  type: 'FEED',
+                  time: new Date().toLocaleTimeString(),
+                  message: `[WS Delta] Received live delta for ${ticker}: ${side} price $${price.toFixed(2)} delta ${qtyDelta >= 0 ? '+' : ''}${qtyDelta}`
+                }]);
+              }
+            }
+          } catch (e) {
+            console.error("Error parsing WebSocket message:", e);
+          }
+        };
+
+        ws.onclose = () => {
+          setLogs(prev => [...prev, {
+            id: Date.now(),
+            type: 'INFO',
+            time: new Date().toLocaleTimeString(),
+            message: `WebSocket connection closed.`
+          }]);
+        };
+
+        ws.onerror = (err) => {
+          setLogs(prev => [...prev, {
+            id: Date.now(),
+            type: 'INFO',
+            time: new Date().toLocaleTimeString(),
+            message: `⚠️ WebSocket connection error: Could not reach BFF Worker.`
+          }]);
+        };
+
+        return () => {
+          if (wsRef.current) {
+            wsRef.current.close();
+            wsRef.current = null;
+          }
+        };
+      }, [executionMode, discoveredMarkets, bffProxyUrl, kalshiEnv, kalshiApiKeyId, kalshiPrivateKey]);
+
       // --- Live Simulated Order Book Feed ---
       useEffect(() => {
-        if (!isSimulating) return;
+        if (!isSimulating || executionMode === 'bff') return;
 
         const interval = setInterval(() => {
           const logTypes = ['FEED', 'MODEL', 'ENGINE', 'ARBITRAGE'];
@@ -1396,25 +1641,50 @@
                   {isFetching ? 'Fetching APIs...' : 'Fetch Live Market Status'}
                 </button>
 
-                {/* Kalshi Credentials Collapsible */}
+                {/* Integration Settings & BFF Collapsible */}
                 <div className="border-t border-zinc-800/60 pt-2.5">
                   <button
                     type="button"
                     onClick={() => setShowCredentials(!showCredentials)}
                     className="text-[10px] font-bold text-zinc-400 hover:text-zinc-200 flex items-center gap-1 transition font-mono uppercase tracking-wider"
                   >
-                    {showCredentials ? '▼ Hide Integration Settings' : '► Configure Kalshi API Credentials'}
+                    {showCredentials ? '▼ Hide Integration Settings' : '► Configure Integration & BFF'}
                   </button>
                   
                   {showCredentials && (
-                    <div className="mt-2 space-y-2 bg-zinc-950/50 p-3 rounded-xl border border-zinc-900">
+                    <div className="mt-2 space-y-2.5 bg-zinc-950/50 p-3 rounded-xl border border-zinc-900">
+                      <div>
+                        <label className="block text-[9px] text-zinc-500 mb-0.5 font-mono uppercase">Execution Mode</label>
+                        <select
+                          value={executionMode}
+                          onChange={(e) => setExecutionMode(e.target.value)}
+                          className="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1 text-xs text-zinc-250 focus:outline-none"
+                        >
+                          <option value="direct">Direct Client Mode (Simulation / Offline)</option>
+                          <option value="bff">BFF Worker Proxy Mode (Cloudflare Worker)</option>
+                        </select>
+                      </div>
+
+                      {executionMode === 'bff' && (
+                        <div>
+                          <label className="block text-[9px] text-zinc-500 mb-0.5 font-mono uppercase">BFF Worker Proxy URL</label>
+                          <input
+                            type="text"
+                            value={bffProxyUrl}
+                            onChange={(e) => setBffProxyUrl(e.target.value)}
+                            placeholder="e.g. http://localhost:8787"
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1 text-xs text-zinc-200 font-mono focus:outline-none"
+                          />
+                        </div>
+                      )}
+
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="block text-[9px] text-zinc-500 mb-0.5 font-mono uppercase">Environment</label>
                           <select
                             value={kalshiEnv}
                             onChange={(e) => setKalshiEnv(e.target.value)}
-                            className="w-full bg-zinc-955 border border-zinc-850 rounded px-2 py-0.5 text-xs text-zinc-200 focus:outline-none"
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-0.5 text-xs text-zinc-200 focus:outline-none"
                           >
                             <option value="demo">Demo Sandbox</option>
                             <option value="prod">Production</option>
@@ -1426,30 +1696,34 @@
                             type="text"
                             value={kalshiSubaccount}
                             onChange={(e) => setKalshiSubaccount(e.target.value)}
-                            className="w-full bg-zinc-900 border border-zinc-850 rounded px-2 py-0.5 text-xs text-zinc-200 font-mono"
+                            className="w-full bg-zinc-900 border border-zinc-805 rounded px-2 py-0.5 text-xs text-zinc-200 font-mono focus:outline-none"
                           />
                         </div>
                       </div>
                       
                       <div>
-                        <label className="block text-[9px] text-zinc-500 mb-0.5 font-mono uppercase">Access Key ID (UUID)</label>
+                        <label className="block text-[9px] text-zinc-500 mb-0.5 font-mono uppercase">
+                          {executionMode === 'bff' ? 'Access Key ID Override (Optional)' : 'Access Key ID (UUID)'}
+                        </label>
                         <input
                           type="text"
                           value={kalshiApiKeyId}
                           onChange={(e) => setKalshiApiKeyId(e.target.value)}
-                          placeholder="e.g. 1a2b3c4d..."
-                          className="w-full bg-zinc-900 border border-zinc-850 rounded px-2 py-0.5 text-xs text-zinc-200 font-mono"
+                          placeholder={executionMode === 'bff' ? "Leave empty to use Worker secrets" : "e.g. 1a2b3c4d..."}
+                          className="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1 text-xs text-zinc-200 font-mono focus:outline-none"
                         />
                       </div>
                       
                       <div>
-                        <label className="block text-[9px] text-zinc-500 mb-0.5 font-mono uppercase">RSA Private Key PEM</label>
+                        <label className="block text-[9px] text-zinc-500 mb-0.5 font-mono uppercase">
+                          {executionMode === 'bff' ? 'RSA Private Key Override (Optional)' : 'RSA Private Key PEM'}
+                        </label>
                         <textarea
                           value={kalshiPrivateKey}
                           onChange={(e) => setKalshiPrivateKey(e.target.value)}
-                          placeholder="-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhki..."
+                          placeholder={executionMode === 'bff' ? "Leave empty to use Worker secrets" : "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhki..."}
                           rows={3}
-                          className="w-full bg-zinc-900 border border-zinc-855 rounded px-2 py-1 text-[9px] text-zinc-355 font-mono focus:outline-none"
+                          className="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1 text-[9px] text-zinc-300 font-mono focus:outline-none"
                         />
                       </div>
 

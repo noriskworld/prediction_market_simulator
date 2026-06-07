@@ -1,0 +1,9 @@
+name = "prediction-market-proxy"
+main = "src/index.js"
+compatibility_date = "2024-03-01"
+
+# Environmental variables/secrets:
+# - KALSHI_API_KEY_ID
+# - KALSHI_PRIVATE_KEY
+# - KALSHI_SUBACCOUNT
+# - KALSHI_ENV

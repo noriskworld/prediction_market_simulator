@@ -20,12 +20,29 @@ For a comprehensive guide on the mathematical formulas, dashboard controls, cont
 
 ## How to Run
 
-Because this is a client-side application, there are no build steps, backend servers, or dependencies to install.
+### a. Direct Client Mode (no `npm run`)
 
 1. Clone or download this repository.
 2. Open `index.html` in any modern web browser (e.g., Chrome, Firefox, Safari).
-   - On Mac: `open index.html`
-3. Enjoy the simulator!
+   - On macOS: `open index.html`
+3. The application runs entirely in the browser using simulated data. No backend or server is required.
+
+### b. BFF Proxy Mode (`npm run`)
+
+1. Ensure you have Node.js (v18+) installed.
+2. In a terminal, navigate to the Cloudflare Worker directory:
+
+   ```bash
+   cd cloudflare-worker
+   npm install   # install dependencies
+   npx wrangler dev   # start the local BFF proxy at http://localhost:8787
+   ```
+
+3. In the main dashboard (`index.html`), open the settings drawer (top‑right gear icon) and set **Execution Mode** to **BFF** and **Proxy URL** to `http://localhost:8787`.
+4. Reload the page. API calls and WebSocket connections will now be routed through the proxy, enabling live market data.
+
+> **Note on API Fetching:**
+> Kalshi API endpoints are protected by Cloudflare. When using Direct Client Mode, you may need a CORS‑bypass extension or rely on the built‑in simulated feeds. BFF Proxy Mode handles CORS and WebSocket header restrictions automatically.
 
 > **Note on API Fetching:**
 > Kalshi API endpoints are protected by Cloudflare. To fetch live data directly from the Kalshi trade API on a local `file:///` system, you must use a browser extension that bypasses CORS restrictions (such as "Allow CORS: Access-Control-Allow-Origin"). A built-in simulated roland-garros winner and score feed will automatically load as a fallback if the connection is restricted.
