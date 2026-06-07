@@ -1,0 +1,791 @@
+
+    const { useState, useEffect, useRef } = React;
+
+    // Direct SVGs for custom visual experience
+    const Icons = {
+      TrendingUp: () => (
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+        </svg>
+      ),
+      TrendingDown: () => (
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 17h8m0 0v-8m0 8l-8-8-4 4-6-6" />
+        </svg>
+      ),
+      Plus: () => (
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+      ),
+      Trash: () => (
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+      ),
+      Terminal: () => (
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      ),
+      Play: () => (
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+      Pause: () => (
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+      ShieldAlert: () => (
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+      ),
+      Activity: () => (
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      ),
+      Info: () => (
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
+    };
+
+    function App() {
+      // --- State Hook Definitions ---
+      const [portfolio, setPortfolio] = useState([
+        { id: '1', platform: 'Polymarket', outcome: 'YES', price: 0.45, quantity: 1000, orderType: 'Taker', category: 'Crypto' },
+        { id: '2', platform: 'Kalshi', outcome: 'NO', price: 0.52, quantity: 500, orderType: 'Taker', category: 'Other' },
+        { id: '3', platform: 'Polymarket', outcome: 'YES', price: 0.40, quantity: 800, orderType: 'Maker', category: 'Sports' }
+      ]);
+
+      const [newTrade, setNewTrade] = useState({
+        platform: 'Polymarket',
+        outcome: 'YES',
+        price: '0.50',
+        quantity: '100',
+        orderType: 'Taker',
+        category: 'Crypto'
+      });
+
+      const [trueProbability, setTrueProbability] = useState(0.50); // Slider: 0 to 1
+
+      // Arbitrage Detector Interactive State
+      const [polyPrices, setPolyPrices] = useState({ yesAsk: '0.44', noAsk: '0.59', orderType: 'Taker', category: 'Crypto' });
+      const [kalshiPrices, setKalshiPrices] = useState({ yesAsk: '0.42', noAsk: '0.55', orderType: 'Taker' });
+      const [arbitrageResults, setArbitrageResults] = useState([]);
+
+      // Algorithmic Log state
+      const [logs, setLogs] = useState([
+        { id: 1, type: 'INFO', time: new Date().toLocaleTimeString(), message: 'Pricing and Evaluation Engine initialized.' },
+        { id: 2, type: 'INFO', time: new Date().toLocaleTimeString(), message: 'Listening to orderbook WebSocket channels...' }
+      ]);
+      const [isSimulating, setIsSimulating] = useState(true);
+      const [simSpeed, setSimSpeed] = useState(4000); // ms
+
+      const terminalEndRef = useRef(null);
+      const chartRef = useRef(null);
+      const chartInstance = useRef(null);
+
+      // --- Math Evaluations ---
+      const matrix = PredictionEngine.evaluateTradeArray(portfolio, 'Polymarket');
+      const expectedValue = PredictionEngine.calculateEV(trueProbability, matrix);
+
+      // --- Arbitrage Trigger ---
+      useEffect(() => {
+        const marketData = [
+          { platform: 'Polymarket', yesAsk: polyPrices.yesAsk, noAsk: polyPrices.noAsk, orderType: polyPrices.orderType, category: polyPrices.category },
+          { platform: 'Kalshi', yesAsk: kalshiPrices.yesAsk, noAsk: kalshiPrices.noAsk, orderType: kalshiPrices.orderType, category: 'Other' }
+        ];
+        const results = PredictionEngine.detectArbitrage(marketData);
+        setArbitrageResults(results);
+      }, [polyPrices, kalshiPrices]);
+
+      // --- Auto-scroll Terminal Logs ---
+      useEffect(() => {
+        if (terminalEndRef.current) {
+          terminalEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, [logs]);
+
+      // --- Chart.js Hooks ---
+      useEffect(() => {
+        if (chartRef.current) {
+          const ctx = chartRef.current.getContext('2d');
+          chartInstance.current = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: ['YES Expiration ($1.00)', 'NO Expiration ($1.00)'],
+              datasets: [{
+                label: 'Net PnL ($)',
+                data: [matrix.netPnLYes, matrix.netPnLNo],
+                backgroundColor: [
+                  matrix.netPnLYes >= 0 ? 'rgba(16, 185, 129, 0.4)' : 'rgba(244, 63, 94, 0.4)',
+                  matrix.netPnLNo >= 0 ? 'rgba(16, 185, 129, 0.4)' : 'rgba(244, 63, 94, 0.4)'
+                ],
+                borderColor: [
+                  matrix.netPnLYes >= 0 ? '#10b981' : '#f43f5e',
+                  matrix.netPnLNo >= 0 ? '#10b981' : '#f43f5e'
+                ],
+                borderWidth: 1.5,
+                borderRadius: 8
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  grid: { color: 'rgba(63, 63, 70, 0.2)' },
+                  ticks: { color: '#a1a1aa', font: { family: 'Inter' } }
+                },
+                x: {
+                  grid: { display: false },
+                  ticks: { color: '#a1a1aa', font: { family: 'Inter' } }
+                }
+              },
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  backgroundColor: '#18181b',
+                  borderColor: 'rgba(63, 63, 70, 0.6)',
+                  borderWidth: 1,
+                  bodyColor: '#f4f4f5',
+                  titleColor: '#f4f4f5'
+                }
+              }
+            }
+          });
+        }
+
+        return () => {
+          if (chartInstance.current) {
+            chartInstance.current.destroy();
+          }
+        };
+      }, []);
+
+      // Update Chart on State Change
+      useEffect(() => {
+        if (chartInstance.current) {
+          chartInstance.current.data.datasets[0].data = [matrix.netPnLYes, matrix.netPnLNo];
+          chartInstance.current.data.datasets[0].backgroundColor = [
+            matrix.netPnLYes >= 0 ? 'rgba(16, 185, 129, 0.4)' : 'rgba(244, 63, 94, 0.4)',
+            matrix.netPnLNo >= 0 ? 'rgba(16, 185, 129, 0.4)' : 'rgba(244, 63, 94, 0.4)'
+          ];
+          chartInstance.current.data.datasets[0].borderColor = [
+            matrix.netPnLYes >= 0 ? '#10b981' : '#f43f5e',
+            matrix.netPnLNo >= 0 ? '#10b981' : '#f43f5e'
+          ];
+          chartInstance.current.update();
+        }
+      }, [matrix.netPnLYes, matrix.netPnLNo]);
+
+      // --- WebSocket / Algorithmic Feed Simulation ---
+      useEffect(() => {
+        if (!isSimulating) return;
+
+        const interval = setInterval(() => {
+          const logTypes = ['FEED', 'MODEL', 'ENGINE', 'ARBITRAGE'];
+          const randomType = logTypes[Math.floor(Math.random() * logTypes.length)];
+          const time = new Date().toLocaleTimeString();
+          let message = '';
+
+          switch (randomType) {
+            case 'FEED': {
+              const platforms = ['Polymarket', 'Kalshi'];
+              const plat = platforms[Math.floor(Math.random() * platforms.length)];
+              const side = Math.random() > 0.5 ? 'YES' : 'NO';
+              const delta = (Math.random() * 0.04 - 0.02);
+              
+              if (plat === 'Polymarket') {
+                const currentYes = parseFloat(polyPrices.yesAsk);
+                const nextYes = Math.max(0.05, Math.min(0.95, currentYes + delta)).toFixed(2);
+                setPolyPrices(prev => ({ ...prev, yesAsk: nextYes }));
+                message = `Polymarket ${side} ask updated to $${nextYes} (Crypto).`;
+              } else {
+                const currentNo = parseFloat(kalshiPrices.noAsk);
+                const nextNo = Math.max(0.05, Math.min(0.95, currentNo + delta)).toFixed(2);
+                setKalshiPrices(prev => ({ ...prev, noAsk: nextNo }));
+                message = `Kalshi ${side} ask updated to $${nextNo} (Taker).`;
+              }
+              break;
+            }
+            case 'MODEL': {
+              const deltaProb = (Math.random() * 0.08 - 0.04);
+              const nextProb = Math.max(0.01, Math.min(0.99, trueProbability + deltaProb));
+              setTrueProbability(parseFloat(nextProb.toFixed(3)));
+              message = `Machine Learning Model update: True probability adjusted to ${(nextProb * 100).toFixed(1)}%.`;
+              break;
+            }
+            case 'ENGINE': {
+              message = `Recalculating expected value vectors. EV is currently ${expectedValue >= 0 ? '+' : ''}$${expectedValue.toFixed(2)}.`;
+              break;
+            }
+            case 'ARBITRAGE': {
+              const testData = [
+                { platform: 'Polymarket', yesAsk: polyPrices.yesAsk, noAsk: polyPrices.noAsk, orderType: polyPrices.orderType, category: polyPrices.category },
+                { platform: 'Kalshi', yesAsk: kalshiPrices.yesAsk, noAsk: kalshiPrices.noAsk, orderType: kalshiPrices.orderType, category: 'Other' }
+              ];
+              const arbs = PredictionEngine.detectArbitrage(testData);
+              if (arbs.length > 0) {
+                const path = arbs[0];
+                message = `🔥 ARBITRAGE SIGNAL: Buy YES on ${path.yesPlatform} ($${path.yesPrice}) + NO on ${path.noPlatform} ($${path.noPrice}). Combined: $${path.totalCost.toFixed(4)}. Net: +$${path.netProfit.toFixed(4)}/contract!`;
+              } else {
+                message = `Scanning markets... Combined cross-platform prices optimal. No mispricing found.`;
+              }
+              break;
+            }
+            default:
+              message = 'System status nominal.';
+          }
+
+          setLogs(prev => [...prev.slice(-49), { id: Date.now(), type: randomType, time, message }]);
+        }, simSpeed);
+
+        return () => clearInterval(interval);
+      }, [isSimulating, polyPrices, kalshiPrices, trueProbability, expectedValue, simSpeed]);
+
+      // --- UI Actions ---
+      const handleAddTrade = (e) => {
+        e.preventDefault();
+        const price = parseFloat(newTrade.price);
+        const qty = parseInt(newTrade.quantity);
+
+        if (isNaN(price) || price <= 0 || price >= 1) {
+          alert('Price must be between 0.01 and 0.99');
+          return;
+        }
+        if (isNaN(qty) || qty <= 0) {
+          alert('Quantity must be greater than 0');
+          return;
+        }
+
+        const added = {
+          id: Date.now().toString(),
+          platform: newTrade.platform,
+          outcome: newTrade.outcome,
+          price,
+          quantity: qty,
+          orderType: newTrade.orderType,
+          category: newTrade.platform === 'Polymarket' ? newTrade.category : 'Other'
+        };
+
+        setPortfolio(prev => [...prev, added]);
+        
+        // Add to log
+        setLogs(prev => [...prev, {
+          id: Date.now(),
+          type: 'ENGINE',
+          time: new Date().toLocaleTimeString(),
+          message: `Added portfolio trade: Buy ${qty} ${newTrade.outcome} at $${price} on ${newTrade.platform}.`
+        }]);
+      };
+
+      const handleRemoveTrade = (id) => {
+        setPortfolio(prev => prev.filter(item => item.id !== id));
+        setLogs(prev => [...prev, {
+          id: Date.now(),
+          type: 'ENGINE',
+          time: new Date().toLocaleTimeString(),
+          message: `Removed trade ID: ${id} from active risk matrix.`
+        }]);
+      };
+
+      const loadMockPortfolio = (scenario) => {
+        if (scenario === 'bull') {
+          setPortfolio([
+            { id: 'b1', platform: 'Polymarket', outcome: 'YES', price: 0.35, quantity: 2000, orderType: 'Taker', category: 'Crypto' },
+            { id: 'b2', platform: 'Polymarket', outcome: 'YES', price: 0.38, quantity: 1500, orderType: 'Maker', category: 'Crypto' },
+            { id: 'b3', platform: 'Kalshi', outcome: 'NO', price: 0.60, quantity: 800, orderType: 'Taker', category: 'Other' }
+          ]);
+          setTrueProbability(0.72);
+        } else if (scenario === 'arb') {
+          // Set prices that guarantee arbitrage
+          setPolyPrices({ yesAsk: '0.40', noAsk: '0.65', orderType: 'Taker', category: 'Crypto' });
+          setKalshiPrices({ yesAsk: '0.45', noAsk: '0.48', orderType: 'Taker' });
+          setPortfolio([]);
+          setLogs(prev => [...prev, {
+            id: Date.now(),
+            type: 'ARBITRAGE',
+            time: new Date().toLocaleTimeString(),
+            message: `Loaded synthetic arbitrage testbed. High-frequency scan initiated.`
+          }]);
+        } else {
+          setPortfolio([
+            { id: 'e1', platform: 'Kalshi', outcome: 'YES', price: 0.50, quantity: 1000, orderType: 'Taker', category: 'Other' },
+            { id: 'e2', platform: 'Polymarket', outcome: 'NO', price: 0.50, quantity: 1000, orderType: 'Taker', category: 'Crypto' }
+          ]);
+          setTrueProbability(0.50);
+        }
+      };
+
+      return (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-16">
+          
+          <!-- Header Banner -->
+          <header className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-zinc-800 pb-6 mb-8 gap-4">
+            <div>
+              <div className="flex items-center space-x-3">
+                <span className="p-2 bg-indigo-600/20 text-indigo-400 rounded-lg border border-indigo-500/30">
+                  <Icons.Activity />
+                </span>
+                <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-indigo-400 bg-clip-text text-transparent">
+                  Prediction Market Portfolio Simulator
+                </h1>
+              </div>
+              <p className="text-sm text-zinc-400 mt-2">
+                Decoupled headless mathematical trading engine coupled with responsive risk scenario tools.
+              </p>
+            </div>
+            
+            <div className="flex flex-wrap gap-2">
+              <button 
+                onClick={() => loadMockPortfolio('bull')} 
+                className="px-3.5 py-1.5 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 text-xs font-semibold rounded-lg border border-indigo-500/20 transition-all duration-200"
+              >
+                Load Trend Scenario
+              </button>
+              <button 
+                onClick={() => loadMockPortfolio('arb')} 
+                className="px-3.5 py-1.5 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 text-xs font-semibold rounded-lg border border-emerald-500/20 transition-all duration-200"
+              >
+                Load Arbitrage Setup
+              </button>
+              <button 
+                onClick={() => loadMockPortfolio('neutral')} 
+                className="px-3.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold rounded-lg border border-zinc-700 transition-all duration-200"
+              >
+                Reset Default
+              </button>
+            </div>
+          </header>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            {/* LEFT PANELS: Portfolio Inputs & Arbitrage Speculator */}
+            <div className="lg:col-span-5 space-y-8">
+              
+              {/* Position Matrix Generator Form */}
+              <section className="cyber-card p-6 rounded-2xl">
+                <h2 className="text-lg font-bold text-zinc-100 flex items-center gap-2 mb-4 border-b border-zinc-800/80 pb-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                  Algorithmic Trade Input
+                </h2>
+                
+                <form onSubmit={handleAddTrade} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-400 mb-1.5 uppercase tracking-wider">Exchange</label>
+                      <select 
+                        value={newTrade.platform}
+                        onChange={(e) => setNewTrade({...newTrade, platform: e.target.value})}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      >
+                        <option value="Polymarket">Polymarket</option>
+                        <option value="Kalshi">Kalshi</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-400 mb-1.5 uppercase tracking-wider">Outcome Side</label>
+                      <select 
+                        value={newTrade.outcome}
+                        onChange={(e) => setNewTrade({...newTrade, outcome: e.target.value})}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      >
+                        <option value="YES">YES Contract</option>
+                        <option value="NO">NO Contract</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-400 mb-1.5 uppercase tracking-wider">Quantity (Q)</label>
+                      <input 
+                        type="number"
+                        min="1"
+                        value={newTrade.quantity}
+                        onChange={(e) => setNewTrade({...newTrade, quantity: e.target.value})}
+                        placeholder="e.g. 500"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-400 mb-1.5 uppercase tracking-wider">Price per contract (P)</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2 text-zinc-500 text-sm">$</span>
+                        <input 
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          max="0.99"
+                          value={newTrade.price}
+                          onChange={(e) => setNewTrade({...newTrade, price: e.target.value})}
+                          placeholder="0.50"
+                          className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-7 pr-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 border-t border-zinc-800/50 pt-3">
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-400 mb-1.5 uppercase tracking-wider">Fee Category</label>
+                      <select 
+                        value={newTrade.category}
+                        disabled={newTrade.platform !== 'Polymarket'}
+                        onChange={(e) => setNewTrade({...newTrade, category: e.target.value})}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-40"
+                      >
+                        <option value="Crypto">Crypto (0.05 Taker)</option>
+                        <option value="Sports">Sports (0.03 Taker)</option>
+                        <option value="Other">Standard / Other (0%)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-400 mb-1.5 uppercase tracking-wider">Order Routine</label>
+                      <select 
+                        value={newTrade.orderType}
+                        onChange={(e) => setNewTrade({...newTrade, orderType: e.target.value})}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      >
+                        <option value="Taker">Taker Execution</option>
+                        <option value="Maker">Maker Liquidity</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    className="w-full bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white py-2 px-4 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/10 transition-all duration-150"
+                  >
+                    <Icons.Plus /> Commit Position to Matrix
+                  </button>
+                </form>
+              </section>
+
+              {/* Cross-Platform Arbitrage Speculator Panel */}
+              <section className="cyber-card p-6 rounded-2xl border-indigo-950">
+                <div className="flex justify-between items-center mb-4 border-b border-zinc-800/80 pb-2">
+                  <h2 className="text-lg font-bold text-zinc-100 flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                    Arbitrage Spotter Input
+                  </h2>
+                  <span className="text-[10px] bg-zinc-800 text-zinc-400 border border-zinc-700 px-2 py-0.5 rounded font-mono">
+                    LIVE SCANNER
+                  </span>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Polymarket Orderbook Mock inputs */}
+                  <div className="bg-zinc-950/40 p-3.5 rounded-lg border border-zinc-800/60">
+                    <h3 className="text-xs font-bold text-indigo-400 mb-3 tracking-wide uppercase">Polymarket Book</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] text-zinc-500 mb-1 font-mono">YES Ask ($)</label>
+                        <input 
+                          type="number" step="0.01" value={polyPrices.yesAsk}
+                          onChange={(e) => setPolyPrices({...polyPrices, yesAsk: e.target.value})}
+                          className="w-full bg-zinc-900/80 border border-zinc-800 rounded px-2 py-1 text-xs text-zinc-200 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-zinc-500 mb-1 font-mono">NO Ask ($)</label>
+                        <input 
+                          type="number" step="0.01" value={polyPrices.noAsk}
+                          onChange={(e) => setPolyPrices({...polyPrices, noAsk: e.target.value})}
+                          className="w-full bg-zinc-900/80 border border-zinc-800 rounded px-2 py-1 text-xs text-zinc-200 font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Kalshi Orderbook Mock inputs */}
+                  <div className="bg-zinc-950/40 p-3.5 rounded-lg border border-zinc-800/60">
+                    <h3 className="text-xs font-bold text-indigo-400 mb-3 tracking-wide uppercase">Kalshi Book</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] text-zinc-500 mb-1 font-mono">YES Ask ($)</label>
+                        <input 
+                          type="number" step="0.01" value={kalshiPrices.yesAsk}
+                          onChange={(e) => setKalshiPrices({...kalshiPrices, yesAsk: e.target.value})}
+                          className="w-full bg-zinc-900/80 border border-zinc-800 rounded px-2 py-1 text-xs text-zinc-200 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-zinc-500 mb-1 font-mono">NO Ask ($)</label>
+                        <input 
+                          type="number" step="0.01" value={kalshiPrices.noAsk}
+                          onChange={(e) => setKalshiPrices({...kalshiPrices, noAsk: e.target.value})}
+                          className="w-full bg-zinc-900/80 border border-zinc-800 rounded px-2 py-1 text-xs text-zinc-200 font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Detection results output */}
+                  <div className="pt-2">
+                    {arbitrageResults.length > 0 ? (
+                      <div className="space-y-2.5">
+                        {arbitrageResults.map((arb, index) => (
+                          <div key={index} className="bg-emerald-950/20 border border-emerald-500/30 rounded-xl p-4 glow-success">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Icons.ShieldAlert />
+                              <span className="text-sm font-bold text-emerald-400 font-mono">ARBITRAGE DETECTED</span>
+                            </div>
+                            <p className="text-xs text-zinc-300 mb-2 font-mono">
+                              Buy <span className="text-emerald-400 font-bold">YES</span> on {arb.yesPlatform} (${arb.yesPrice.toFixed(2)}) + <span className="text-emerald-400 font-bold">NO</span> on {arb.noPlatform} (${arb.noPrice.toFixed(2)}).
+                            </p>
+                            <div className="grid grid-cols-3 gap-2 text-center text-[11px] font-mono text-zinc-400 border-t border-zinc-800/80 pt-2.5">
+                              <div>
+                                <span className="block text-zinc-500 text-[10px]">TOTAL COST</span>
+                                <span className="text-zinc-200 font-bold">${arb.totalCost.toFixed(4)}</span>
+                              </div>
+                              <div>
+                                <span className="block text-zinc-500 text-[10px]">NET REVENUE</span>
+                                <span className="text-emerald-400 font-bold">+${arb.netProfit.toFixed(4)}</span>
+                              </div>
+                              <div>
+                                <span className="block text-zinc-500 text-[10px]">NET ROI</span>
+                                <span className="text-emerald-400 font-bold">{arb.roi.toFixed(2)}%</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-zinc-950 border border-zinc-900 rounded-xl p-4 text-center">
+                        <p className="text-xs text-zinc-500 font-mono">
+                          No arbitrage opportunities found. Prices sum to ≥ $1.00 inclusive of platform fees.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+
+            </div>
+            
+            {/* RIGHT PANELS: Real-time Output & Charting */}
+            <div className="lg:col-span-7 space-y-8">
+              
+              {/* Risk Analytics Output */}
+              <section className="cyber-card p-6 rounded-2xl">
+                <h2 className="text-lg font-bold text-zinc-100 flex items-center gap-2 mb-6 border-b border-zinc-800/80 pb-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                  Interactive Risk Analytics
+                </h2>
+
+                {/* Algorithmic Slider */}
+                <div className="bg-zinc-950/60 p-5 rounded-2xl border border-zinc-800/50 mb-6">
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">True Probability Variable (Signal Input)</span>
+                    <span className="text-lg font-extrabold text-indigo-400 font-mono">{(trueProbability * 100).toFixed(1)}%</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="1" 
+                    step="0.005"
+                    value={trueProbability}
+                    onChange={(e) => setTrueProbability(parseFloat(e.target.value))}
+                    className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 focus:outline-none"
+                  />
+                  <div className="flex justify-between text-[10px] text-zinc-500 mt-2 font-mono">
+                    <span>0% (DEF. NO)</span>
+                    <span>50% (NEUTRAL)</span>
+                    <span>100% (DEF. YES)</span>
+                  </div>
+                </div>
+
+                {/* STAT CARDS */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                  <div className="bg-zinc-950 border border-zinc-900 rounded-xl p-4">
+                    <span className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Capital Allocated</span>
+                    <span className="text-2xl font-extrabold text-zinc-200 font-mono">${matrix.totalCapitalDeployed.toFixed(2)}</span>
+                    <span className="block text-[10px] text-zinc-500 mt-1">Cost: ${matrix.totalCostBasis.toFixed(2)} + Fees: ${matrix.totalFees.toFixed(2)}</span>
+                  </div>
+
+                  <div className={`bg-zinc-950 border border-zinc-900 rounded-xl p-4 ${expectedValue >= 0 ? 'border-emerald-500/20' : 'border-rose-500/20'}`}>
+                    <span className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Expected Value (EV)</span>
+                    <span className={`text-2xl font-extrabold font-mono ${expectedValue >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {expectedValue >= 0 ? '+' : ''}${expectedValue.toFixed(2)}
+                    </span>
+                    <span className="block text-[10px] text-zinc-500 mt-1">Weighted by model probability</span>
+                  </div>
+
+                  <div className="bg-zinc-950 border border-zinc-900 rounded-xl p-4">
+                    <span className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Max Risk Drawdown</span>
+                    <span className="text-2xl font-extrabold text-rose-500 font-mono">${matrix.maxDrawdownAmount.toFixed(2)}</span>
+                    <span className="block text-[10px] text-zinc-500 mt-1">Worst-case scenario loss</span>
+                  </div>
+                </div>
+
+                {/* Matrix payoff graph */}
+                <div className="bg-zinc-950 border border-zinc-900 rounded-xl p-4 mb-6 h-60 relative">
+                  <canvas ref={chartRef}></canvas>
+                </div>
+
+                {/* Discrete Payoff Matrix Table */}
+                <div className="border border-zinc-800 rounded-xl overflow-hidden">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-zinc-900/60 text-xs font-bold text-zinc-400 uppercase tracking-wider border-b border-zinc-800">
+                      <tr>
+                        <th className="px-4 py-3">Outcome State</th>
+                        <th className="px-4 py-3 text-right">Gross Payoff</th>
+                        <th className="px-4 py-3 text-right">Net Profit</th>
+                        <th className="px-4 py-3 text-right">Net ROI</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800 font-mono text-xs">
+                      <tr className="hover:bg-zinc-900/20 transition-all duration-150">
+                        <td className="px-4 py-3 text-zinc-300 font-semibold font-sans">YES Expiration (YES Wins)</td>
+                        <td className="px-4 py-3 text-right text-zinc-200">${matrix.payoutYes.toFixed(2)}</td>
+                        <td className={`px-4 py-3 text-right font-bold ${matrix.netPnLYes >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {matrix.netPnLYes >= 0 ? '+' : ''}${matrix.netPnLYes.toFixed(2)}
+                        </td>
+                        <td className={`px-4 py-3 text-right font-bold ${matrix.netPnLYes >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {matrix.roiYes.toFixed(2)}%
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-zinc-900/20 transition-all duration-150">
+                        <td className="px-4 py-3 text-zinc-300 font-semibold font-sans">NO Expiration (NO Wins)</td>
+                        <td className="px-4 py-3 text-right text-zinc-200">${matrix.payoutNo.toFixed(2)}</td>
+                        <td className={`px-4 py-3 text-right font-bold ${matrix.netPnLNo >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {matrix.netPnLNo >= 0 ? '+' : ''}${matrix.netPnLNo.toFixed(2)}
+                        </td>
+                        <td className={`px-4 py-3 text-right font-bold ${matrix.netPnLNo >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {matrix.roiNo.toFixed(2)}%
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+              </section>
+
+              {/* ACTIVE HOLDINGS TABLE */}
+              <section className="cyber-card p-6 rounded-2xl">
+                <h2 className="text-lg font-bold text-zinc-100 flex items-center gap-2 mb-4 border-b border-zinc-800/80 pb-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                  Active Risk Holdings ({portfolio.length})
+                </h2>
+
+                {portfolio.length > 0 ? (
+                  <div className="overflow-x-auto border border-zinc-800 rounded-xl">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-zinc-900/60 text-zinc-400 uppercase tracking-wider font-semibold border-b border-zinc-800">
+                        <tr>
+                          <th className="px-3 py-2.5">Platform</th>
+                          <th className="px-3 py-2.5">Side</th>
+                          <th className="px-3 py-2.5 text-right">Quantity</th>
+                          <th className="px-3 py-2.5 text-right">Price</th>
+                          <th className="px-3 py-2.5 text-right">Fees</th>
+                          <th className="px-3 py-2.5 text-right">Total Cost</th>
+                          <th className="px-3 py-2.5 text-center">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-800 font-mono text-zinc-300">
+                        {matrix.positions.map((pos) => (
+                          <tr key={pos.id} className="hover:bg-zinc-900/30 transition-all duration-150">
+                            <td className="px-3 py-2.5 font-sans">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${pos.platform === 'Polymarket' ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/20' : 'bg-orange-600/20 text-orange-400 border border-orange-500/20'}`}>
+                                {pos.platform}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${pos.outcome === 'YES' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                                {pos.outcome}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5 text-right font-bold">{pos.quantity.toLocaleString()}</td>
+                            <td className="px-3 py-2.5 text-right">${pos.price.toFixed(2)}</td>
+                            <td className="px-3 py-2.5 text-right text-zinc-500">${pos.fee.toFixed(4)}</td>
+                            <td className="px-3 py-2.5 text-right font-bold text-zinc-200">${pos.totalCost.toFixed(2)}</td>
+                            <td className="px-3 py-2.5 text-center">
+                              <button 
+                                onClick={() => handleRemoveTrade(pos.id)}
+                                className="p-1 text-zinc-500 hover:text-rose-500 transition-colors"
+                              >
+                                <Icons.Trash />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="bg-zinc-950 border border-zinc-900 rounded-xl p-8 text-center text-zinc-500 text-sm font-sans">
+                    No open positions in current execution session. Input parameters above to add exposure.
+                  </div>
+                )}
+              </section>
+
+              {/* Algorithmic Log Component (Terminal simulation) */}
+              <section className="cyber-card p-6 rounded-2xl">
+                <div className="flex justify-between items-center mb-3">
+                  <h2 className="text-md font-bold text-zinc-100 flex items-center gap-2">
+                    <Icons.Terminal />
+                    Algorithmic execution Feed
+                  </h2>
+                  
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs text-zinc-500 font-mono">Speed</span>
+                    <select 
+                      value={simSpeed}
+                      onChange={(e) => setSimSpeed(Number(e.target.value))}
+                      className="bg-zinc-900 border border-zinc-800 text-[11px] font-mono text-zinc-400 rounded px-1.5 py-0.5 focus:outline-none"
+                    >
+                      <option value="2000">2s / tick</option>
+                      <option value="4000">4s / tick</option>
+                      <option value="8000">8s / tick</option>
+                    </select>
+
+                    <button 
+                      onClick={() => setIsSimulating(!isSimulating)}
+                      className={`p-1.5 rounded transition-colors text-xs font-semibold flex items-center gap-1.5 ${isSimulating ? 'bg-rose-600/20 text-rose-400 border border-rose-500/20 hover:bg-rose-500/30' : 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/30'}`}
+                    >
+                      {isSimulating ? <Icons.Pause /> : <Icons.Play />}
+                      {isSimulating ? 'Pause feed' : 'Resume'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="terminal-log rounded-xl p-4 h-48 overflow-y-auto font-mono text-xs text-zinc-400 terminal-scrollbar">
+                  {logs.map((log) => {
+                    let typeColor = 'text-zinc-500';
+                    if (log.type === 'MODEL') typeColor = 'text-indigo-400';
+                    if (log.type === 'FEED') typeColor = 'text-sky-400';
+                    if (log.type === 'ARBITRAGE') typeColor = 'text-emerald-400 font-bold';
+                    if (log.type === 'ENGINE') typeColor = 'text-yellow-400';
+
+                    return (
+                      <div key={log.id} className="mb-1.5 leading-relaxed break-words border-b border-zinc-950/20 pb-0.5">
+                        <span className="text-zinc-600">[{log.time}]</span>{' '}
+                        <span className={typeColor}>[{log.type}]</span>{' '}
+                        <span className="text-zinc-300">{log.message}</span>
+                      </div>
+                    );
+                  })}
+                  <div ref={terminalEndRef}></div>
+                </div>
+              </section>
+
+            </div>
+
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  
