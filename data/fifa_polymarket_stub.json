@@ -1,0 +1,36 @@
+{
+  "markets": [
+    {
+      "id": "poly-fifa26-usa",
+      "question": "Will USA win the FIFA World Cup 2026?",
+      "outcomePrices": ["0.16", "0.84"],
+      "outcomes": ["Yes", "No"],
+      "groupItemTitle": "USA",
+      "tags": ["FIFA", "Soccer"]
+    },
+    {
+      "id": "poly-fifa26-bra",
+      "question": "Will Brazil win the FIFA World Cup 2026?",
+      "outcomePrices": ["0.26", "0.74"],
+      "outcomes": ["Yes", "No"],
+      "groupItemTitle": "Brazil",
+      "tags": ["FIFA", "Soccer"]
+    },
+    {
+      "id": "poly-fifa26-arg",
+      "question": "Will Argentina win the FIFA World Cup 2026?",
+      "outcomePrices": ["0.21", "0.79"],
+      "outcomes": ["Yes", "No"],
+      "groupItemTitle": "Argentina",
+      "tags": ["FIFA", "Soccer"]
+    },
+    {
+      "id": "poly-fifa26-usa-eng",
+      "question": "USA vs England: Will USA win?",
+      "outcomePrices": ["0.33", "0.67"],
+      "outcomes": ["Yes", "No"],
+      "groupItemTitle": "USA",
+      "tags": ["FIFA", "Soccer", "Match"]
+    }
+  ]
+}

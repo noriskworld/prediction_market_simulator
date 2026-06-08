@@ -1,0 +1,36 @@
+{
+  "markets": [
+    {
+      "ticker": "KXFIFA26-USA",
+      "title": "Will USA win the FIFA World Cup 2026?",
+      "yes_bid_dollars": "0.1500",
+      "no_bid_dollars": "0.8000",
+      "mutually_exclusive": true,
+      "event_ticker": "KXFIFA26"
+    },
+    {
+      "ticker": "KXFIFA26-BRA",
+      "title": "Will Brazil win the FIFA World Cup 2026?",
+      "yes_bid_dollars": "0.2500",
+      "no_bid_dollars": "0.7200",
+      "mutually_exclusive": true,
+      "event_ticker": "KXFIFA26"
+    },
+    {
+      "ticker": "KXFIFA26-ARG",
+      "title": "Will Argentina win the FIFA World Cup 2026?",
+      "yes_bid_dollars": "0.2200",
+      "no_bid_dollars": "0.7500",
+      "mutually_exclusive": true,
+      "event_ticker": "KXFIFA26"
+    },
+    {
+      "ticker": "KXFIFA26-USA-ENG",
+      "title": "USA vs England: Will USA win?",
+      "yes_bid_dollars": "0.3500",
+      "no_bid_dollars": "0.6200",
+      "mutually_exclusive": false,
+      "event_ticker": "KXFIFA26-MATCH"
+    }
+  ]
+}
